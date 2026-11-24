@@ -1,0 +1,35 @@
+# Render free tier — Onyx backend.
+# Deploy: Blueprint deploy from the onyx-signal-bot-server repo (this
+# directory IS the repo root). Set secret env vars in the Render
+# dashboard (never in this file).
+services:
+  - type: web
+    name: onyx-signal-bot
+    env: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PREMIUM_PRICE_USDT
+        value: "1.97"
+      - key: PREMIUM_DAYS
+        value: "30"
+      - key: FREE_DAILY_LIMIT
+        value: "10"
+      - key: AUTO_TXID_CHECK
+        value: "false"
+      - key: CHECKOUT_ENABLED
+        value: "false"
+      - key: BETA
+        value: "true"
+      # Set these in the Render dashboard (secret values, never here):
+      # SUPABASE_URL, SUPABASE_KEY, ADMIN_KEY,
+      # WALLET_BSC, WALLET_TRON,
+      # BSCSCAN_API_KEY (optional, free key), ALLOWED_ORIGINS
+      # NOTE: the code reads SUPABASE_URL + SUPABASE_KEY (Supabase REST
+      # client), NOT a Postgres DATABASE_URL connection string. Do not
+      # wire DATABASE_URL expecting the API to use it.
+      # QUOTEX feed credentials go in later via the secure route
+      # (QUOTEX_SSID); never a password, never in chat.

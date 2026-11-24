@@ -1,0 +1,8 @@
+# Onyx backend — free stack only. No paid package anywhere.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+supabase==2.15.0
+requests==2.32.3
+pydantic==2.10.4
+# NOTE: pyquotex (Way 1 candle feed) is NOT listed here — it belongs to
+# the signal engine (server/engine/), owned by the engine agent.

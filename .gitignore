@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+onyx_dev.db
+# signal engine (server/engine/): local test outbox + pyquotex session files
+data/
+session.json
+settings/
+browser/

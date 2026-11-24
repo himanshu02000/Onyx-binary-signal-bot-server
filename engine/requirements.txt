@@ -1,0 +1,5 @@
+# ONYX signal engine dependencies — free stack only.
+# pyquotex is NOT on PyPI; it installs from GitHub.
+# (The backend's requirements.txt deliberately excludes it — it
+# belongs to the engine. Install with: pip install -r requirements.txt)
+git+https://github.com/cleitonleonel/pyquotex.git
