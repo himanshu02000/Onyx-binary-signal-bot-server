@@ -15,6 +15,7 @@ Endpoints (all JSON):
     POST /api/payments/txid              submit a TXID (stored as pending)
     POST /api/payments/verify            admin: approve/reject -> premium 30 days
     POST /api/payments/check             admin: run the optional auto TXID check (advisory only)
+    POST /telegram/webhook                Telegram bot webhook (/start + /help; 503 if no bot token)
 
 SCOPE (Nov 24, owner decision): REAL PAIRS ONLY for now; OTC is
 "coming soon". Every signal endpoint serves market='real' only —
@@ -44,12 +45,13 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 import db
 import plans
+import telegram_bot
 import txid_check
 from db import backend as db_backend
 
@@ -79,6 +81,11 @@ app.add_middleware(
 @app.on_event("startup")
 def _startup() -> None:
     db.init_db()
+    if not telegram_bot.token_configured():
+        print("WARNING: TELEGRAM_BOT_TOKEN not set — /telegram/webhook returns 503.")
+    elif not telegram_bot.webhook_secret():
+        print("WARNING: TELEGRAM_WEBHOOK_SECRET not set — webhook accepts any POST "
+              "(set it in Render and in setWebhook for production).")
 
 
 # ------------------------------------------------------------------ models
@@ -358,3 +365,32 @@ def auto_check_payment(body: CheckIn, x_admin_key: Optional[str] = Header(None))
     verdict["advisory_only"] = True
     verdict["note"] = "This does NOT approve the payment. Approve via POST /api/payments/verify."
     return verdict
+
+
+# ----------------------------------------------------------------- telegram
+@app.post("/telegram/webhook")
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: Optional[str] = Header(None),
+):
+    """Telegram bot webhook (webhook only — no polling; Render free tier
+    cannot run a background worker). Answers /start and /help; ignores
+    everything else silently. Returns 503 while TELEGRAM_BOT_TOKEN is
+    unset, 401 when a configured webhook secret does not match."""
+    secret = telegram_bot.webhook_secret()
+    if secret and x_telegram_bot_api_secret_token != secret:
+        raise HTTPException(401, "Invalid webhook secret.")
+    if not telegram_bot.token_configured():
+        raise HTTPException(
+            503,
+            "Telegram bot is not configured on this server "
+            "(TELEGRAM_BOT_TOKEN is not set).",
+        )
+    try:
+        update = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    if not isinstance(update, dict):
+        raise HTTPException(400, "Update must be a JSON object.")
+    handled = telegram_bot.handle_update(update)
+    return {"ok": True, "handled": handled}

@@ -24,6 +24,7 @@ in this phase. Nothing else changes.
 | `db.py` | Database layer — Supabase client + local SQLite fallback. **All queries go through here; the engine agent reuses `insert_signal()` / `update_signal_result()`** |
 | `plans.py` | Free/premium rules (single source of truth) |
 | `txid_check.py` | TXID verification — manual first; optional auto-check via free BscScan / TronScan public APIs |
+| `telegram_bot.py` | Telegram webhook handler — `/start` welcome + Open Onyx button, `/help`; raw Bot API via `requests`, no new dependency |
 | `seed.py` | Local-dev sample data (SQLite only, beta real-market signals) |
 | `supabase/schema.sql` | Supabase tables: users, signals, payments, settings |
 | `requirements.txt` | Free packages only (pyquotex is the engine agent's, not here) |
@@ -65,9 +66,44 @@ fully unlocked. If the owner wants a different split, change
 | POST | `/api/payments/txid` | `{user_id, network, txid, amount}` → stored `pending` |
 | POST | `/api/payments/verify` | Admin (`X-Admin-Key`): approve/reject → premium 30 days on approval |
 | POST | `/api/payments/check` | Admin: optional auto TXID check — **advisory only, never approves** |
+| POST | `/telegram/webhook` | Telegram bot webhook: `/start` (welcome + Open Onyx button) and `/help`; 503 while `TELEGRAM_BOT_TOKEN` is unset |
 
 `GET /api/signals` and `/api/results` also accept `?market=otc` — it
 always returns an empty list in this phase (OTC coming soon).
+
+## Telegram bot (webhook only — no polling)
+
+The bot (@OnyxBinarySignalBot) answers `/start` and `/help` through
+`POST /telegram/webhook` (`telegram_bot.py`). It uses raw Bot API calls
+with `requests` — no python-telegram-bot dependency. Render free tier
+cannot run a background worker, so there is no polling.
+
+- `/start` — registers the Telegram user (same fields as
+  `POST /api/users`; a DB failure never blocks the reply) and sends the
+  owner-approved welcome text with one inline button, "🚀 Open Onyx"
+  (a `web_app` button to the Mini App URL). `/start` with extra args
+  (e.g. `/start ref_123`) is handled the same as plain `/start`.
+- `/help` — short help text (commands + how it works), no keyboard.
+- Any other message/update type is ignored silently (200, no reply).
+
+To finish the wiring once the bot token exists (owner's job — the
+token is never put in chat or code):
+
+1. Set `TELEGRAM_BOT_TOKEN` in the Render service's env vars (and
+   optionally `TELEGRAM_WEBHOOK_SECRET` — a long random string).
+2. Redeploy the Render service.
+3. Point Telegram at the webhook (replace `<TOKEN>` and `<SECRET>`
+   with the real values — keep them out of chat, logs and screenshots):
+
+```bash
+curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://onyx-signal-bot.onrender.com/telegram/webhook&secret_token=<SECRET>"
+```
+
+If `TELEGRAM_WEBHOOK_SECRET` is set, the endpoint rejects webhook
+POSTs whose `X-Telegram-Bot-Api-Secret-Token` header does not match
+(401). If it is unset, the endpoint accepts any POST and logs a
+warning at startup. While `TELEGRAM_BOT_TOKEN` is unset, the
+endpoint returns 503 and every other endpoint works as before.
 
 ## Payments / TXID flow
 
