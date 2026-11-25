@@ -14,6 +14,16 @@ Streams live Quotex 1-minute candles (real pairs only), runs the
 strategies, writes signals with status="test" to the local outbox,
 and scores them after expiry. No signal is delivered to any user.
 
+FINNHUB MODE (temporary test feed):
+    FINNHUB_API_KEY=... python -m engine.run --mode finnhub
+Streams live forex ticks from Finnhub's free websocket, aggregates
+them into 1-minute candles, runs the same strategies unchanged, and
+writes signals with status="test" / is_beta=true to the SAME store
+the API reads (db.py via DbSignalStore, JSONL outbox as fallback),
+so they show up in GET /api/signals for testing. Quotex remains the
+production feed; Finnhub is test-phase only (free tier is
+personal-use). No signal is delivered as a paid/premium signal.
+
 Run from ~/workspace/signal-bot/server (so relative imports work):
     .venv/bin/python -m engine.run --mode test
 """
@@ -33,8 +43,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from engine.candles import CandleStore
 from engine.feed import HistdataFileFeed, TwelveDataFeed
-from engine.quotex_feed import QuotexConfig, QuotexFeed
-from engine.results import JsonFileSignalStore, ResultChecker
+from engine.finnhub_feed import FinnhubConfig, FinnhubFeed, FinnhubKeyMissing
+from engine.quotex_feed import QuotexConfig, QuotexFeed, QuotexSessionMissing
+from engine.results import DbSignalStore, JsonFileSignalStore, ResultChecker
 from engine.strategies import build_strategies
 from engine.types import (
     REAL_PAIRS,
@@ -69,7 +80,7 @@ PUBLISHED = {
 
 def _parse_args(argv=None):
     p = argparse.ArgumentParser(description="ONYX signal engine runner")
-    p.add_argument("--mode", choices=["test", "live"], default="test")
+    p.add_argument("--mode", choices=["test", "live", "finnhub"], default="test")
     p.add_argument("--pairs", default=",".join(REAL_PAIRS),
                    help="comma-separated pairs, e.g. EURUSD,GBPUSD")
     p.add_argument("--strategies", default="elite,prime,ha_fade",
@@ -97,12 +108,18 @@ class Engine:
     test replay and live streaming: every 1m bar goes through
     ``on_1m_bar`` in the same order."""
 
-    def __init__(self, pairs, strategies, outbox_dir, broker: Broker):
+    def __init__(self, pairs, strategies, outbox_dir, broker: Broker,
+                 store=None):
         self.pairs = pairs
         self.store = CandleStore(pairs)
         self.strategies = strategies
         self.broker = broker
-        self.checker = ResultChecker(JsonFileSignalStore(outbox_dir))
+        # Default store is the local JSONL outbox (test + live modes).
+        # Finnhub mode passes a DbSignalStore so signals land in the
+        # same DB the API serves (JSONL as fallback).
+        self.checker = ResultChecker(
+            store if store is not None else JsonFileSignalStore(outbox_dir)
+        )
         self.emitted: list[Signal] = []
         self.scored: list[tuple[Signal, str]] = []
         self.voided_at_end = 0
@@ -247,12 +264,83 @@ async def run_live(args) -> None:
         await feed.close()
 
 
+async def run_finnhub(args) -> None:
+    """FINNHUB MODE (temporary test feed).
+
+    Same strategies, same scoring as live mode — only the candle
+    source differs (Finnhub websocket ticks -> 1m candles). Signals
+    are written with status="test" / is_beta=true to the same DB the
+    API reads (DbSignalStore; local JSONL outbox as fallback), so
+    they show up in GET /api/signals for testing. Nothing here is
+    ever a paid/premium signal and nothing places a trade.
+    """
+    config = FinnhubConfig.from_env()
+    config.require()  # clear error if the key is missing — first thing
+    pairs = [p.strip().upper() for p in args.pairs.split(",") if p.strip()]
+    strategies = build_strategies(
+        names=[s.strip() for s in args.strategies.split(",")],
+        elite_trigger=args.elite_trigger,
+        prime_expiry_min=args.prime_expiry,
+        ha_tfs=[int(x) for x in args.ha_tfs.split(",")],
+    )
+    store = DbSignalStore(JsonFileSignalStore(args.data_dir))
+    engine = Engine(pairs, strategies, args.data_dir, Broker.FINNHUB,
+                    store=store)
+    feed = FinnhubFeed(config, pairs=pairs)
+
+    # Finnhub free has NO historical candle endpoint, so seed history
+    # from Twelve Data when its key is set (same pattern as live mode's
+    # optional backfill feed). Without a seed the strategies need live
+    # warmup before they can fire (Prime needs ~1500 1m bars).
+    td = TwelveDataFeed()
+    if td.available:
+        for pair in pairs:
+            try:
+                for c in td.fetch_1m(pair):
+                    engine.store.add_closed(c)
+                print(f"seeded {pair}: history loaded (twelvedata)",
+                      flush=True)
+            except Exception as exc:
+                print(f"seed {pair} failed ({exc}); continuing live",
+                      flush=True)
+    else:
+        print("WARNING: no TWELVEDATA_API_KEY — no history seed. "
+              "Strategies need live warmup before signals fire.",
+              flush=True)
+
+    def on_candle(candle: Candle) -> None:
+        engine.on_1m_bar(candle)
+        print(
+            f"{candle.start.isoformat()} {candle.pair} 1m close "
+            f"{candle.close} | emitted={len(engine.emitted)} "
+            f"scored={len(engine.scored)}",
+            flush=True,
+        )
+
+    print("FINNHUB MODE (TEST ONLY, BETA): Finnhub is the temporary "
+          "test feed — Quotex remains the production feed. Signals "
+          "written with status=test / is_beta=true to the API store. "
+          "No delivery as paid/premium signals.", flush=True)
+    try:
+        await feed.run(on_candle)
+    finally:
+        await feed.close()
+
+
 def main(argv=None) -> int:
     args = _parse_args(argv)
-    if args.mode == "test":
-        run_test(args)
-    else:
-        asyncio.run(run_live(args))
+    try:
+        if args.mode == "test":
+            run_test(args)
+        elif args.mode == "finnhub":
+            asyncio.run(run_finnhub(args))
+        else:
+            asyncio.run(run_live(args))
+    except (FinnhubKeyMissing, QuotexSessionMissing) as exc:
+        # Missing credentials fail CLEANLY: one clear line on stderr,
+        # exit code 2, no traceback, no prompt.
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     return 0
 
 

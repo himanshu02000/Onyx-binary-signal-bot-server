@@ -8,7 +8,7 @@ services:
     env: python
     plan: free
     region: singapore
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && pip install -r engine/requirements.txt
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
@@ -26,7 +26,7 @@ services:
         value: "true"
       # Set these in the Render dashboard (secret values, never here):
       # SUPABASE_URL, SUPABASE_KEY, ADMIN_KEY,
-      # WALLET_BSC, WALLET_TRON,
+      # WALLET_BSC, WALLET_TRON, FINNHUB_API_KEY (live test feed),
       # BSCSCAN_API_KEY (optional, free key), ALLOWED_ORIGINS
       # NOTE: the code reads SUPABASE_URL + SUPABASE_KEY (Supabase REST
       # client), NOT a Postgres DATABASE_URL connection string. Do not

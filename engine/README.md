@@ -17,6 +17,11 @@ ever shown to a user except through a signal's public fields.
   `is_beta=true`. No signal is delivered to any user. The engine is a
   test harness until a strategy proves it wins.
 - **Free stack only.** No paid service anywhere.
+- **Finnhub is the TEMPORARY TEST FEED** (Nov 25 2026) while the
+  Quotex feed is blocked (no QUOTEX_SSID — the session cookie cannot
+  be read from the browser). **Quotex remains the production feed.**
+  Finnhub free is personal-use: fine for testing while the bot earns
+  from ads only, never the feed for a sold premium product.
 
 ## Honest state of the strategies
 
@@ -36,12 +41,17 @@ engine/
                   complete candles only (backtest rule A1)
   feed.py         HistdataFileFeed (test replay) + TwelveDataFeed
                   (free live-feed option: seed/backfill only)
+  finnhub_feed.py FinnhubFeed — TEMPORARY TEST FEED: free websocket
+                  ticks aggregated into 1m candles (see below)
+  test_finnhub_feed.py  unit tests for the Finnhub feed (20 tests,
+                  no network, no real key)
   strategies.py   Elite, Prime, HA-fade, Turbo — SERVER SIDE ONLY
   results.py      ResultChecker (tie = loss, missing bar = void) +
                   JsonFileSignalStore + DbSignalStore (db.py adapter)
   quotex_feed.py  pyquotex wrapper: demo, read-only, SSID env auth
-  run.py          runner: --mode test (replay) / live (stream)
-  requirements.txt  pyquotex (GitHub — not on PyPI)
+  run.py          runner: --mode test (replay) / live (Quotex) /
+                  finnhub (Finnhub test feed)
+  requirements.txt  pyquotex (GitHub — not on PyPI) + websockets
 scripts/
   prove_stream.py prove the live Quotex stream (60s, real pairs)
 ```
@@ -61,6 +71,28 @@ when a database is wanted; otherwise it uses the local JSONL outbox
 2. `signals.result` CHECK is `('win','loss','pending')` — no `'void'`.
    VOID results stay `'pending'` in the db; the JSONL outbox records
    them properly.
+
+> UPDATE Nov 24 2026 (build coordinator, per `results.py`): gaps 1
+> and 2 are RESOLVED — `'ha_fade'` is in the strategy CHECK and
+> `'void'` is in the result CHECK, in both `schema.sql` and db.py's
+> SQLite schema. The notes above are kept for history; the checks in
+> the files are the truth.
+>
+> UPDATE Nov 25 2026 (Finnhub test feed): `'finnhub'` was added to
+> the `signals.broker` CHECK in `schema.sql`, db.py's SQLite schema,
+> and `plans.BROKERS`, so Finnhub-mode signals write to the same DB
+> the API reads. The LIVE Supabase project still has the old CHECK —
+> before Finnhub mode can write to production Supabase, run this in
+> the Supabase SQL Editor (one-time ALTER, no data touched):
+>
+> ```sql
+> alter table public.signals drop constraint signals_broker_check;
+> alter table public.signals add constraint signals_broker_check
+>   check (broker in ('quotex', 'olymp_trade', 'pocket_option', 'finnhub'));
+> ```
+>
+> (The exact constraint name may differ in the live project — check
+> `signals_broker_check` in the dashboard first.)
 
 ## Strategy rules (ports of the backtests)
 
@@ -105,6 +137,12 @@ python3 -m venv .venv
 
 # LIVE MODE — needs a Quotex demo session (see below).
 QUOTEX_EMAIL=... QUOTEX_SSID=... .venv/bin/python -m engine.run --mode live
+
+# FINNHUB MODE (temporary test feed) — needs a free Finnhub key.
+FINNHUB_API_KEY=... .venv/bin/python -m engine.run --mode finnhub
+# Signals land in the same DB the API reads (status=test, is_beta=true),
+# so they show up in GET /api/signals for testing. No key -> clean
+# error, exit 2. Live-key proof still needs a real key (see BLOCKED).
 ```
 
 ## Live feed (Way 1) — env vars, never files, never a password
@@ -140,6 +178,43 @@ seeding history at startup and backfilling gaps after a reconnect
 1-minute candles in this phase come from Quotex. Note: some trackers
 list the free tier as non-commercial use — check the licence on
 twelvedata.com/pricing before user-facing use.
+
+## Finnhub live feed (TEMPORARY TEST FEED — Nov 25 2026)
+
+While the Quotex feed is blocked (no `QUOTEX_SSID`: the session
+cookie cannot be read from the browser), `--mode finnhub` streams
+live forex ticks from Finnhub's free websocket and aggregates them
+into 1-minute candles. Same strategies, same scoring, same
+`status="test"` / `is_beta=true` — only the candle source differs,
+and the signals carry `broker="finnhub"` so their origin is honest.
+**Quotex remains the production feed.**
+
+| Var | Meaning |
+|-----|---------|
+| `FINNHUB_API_KEY` | Free key from finnhub.io/register (no card) |
+| `TWELVEDATA_API_KEY` | Optional: seeds history at startup (Finnhub free has no candle endpoint; without it the strategies need live warmup before signals fire) |
+
+How it works (`finnhub_feed.py`): subscribes to the six pairs as
+`OANDA:EUR_USD` symbols on `wss://ws.finnhub.io?token=KEY`, folds
+each trade tick into the forming 1m bucket (open = first tick,
+high/low from ticks, close = last tick, volume = summed trade
+volume or tick count), and emits the candle when its minute ends —
+including a timer flush, so a quiet minute still closes on time.
+Late ticks for an old bucket are ignored; minutes with no ticks get
+no fabricated candle. Ping messages are answered with pong.
+Reconnects with exponential backoff (1s → 60s cap) and resubscribes;
+on any drop the forming buckets are discarded, so no candle is ever
+built from stale or partial ticks — the same rule as QuotexFeed.
+
+Free-tier limits (verified Nov 25 2026): **50 symbols per socket,
+60 REST calls/min.** This module makes zero REST calls and
+subscribes to 6 symbols — well inside the limit. The key is env-only,
+never logged, never written to disk.
+
+Licence note: Finnhub free is personal-use. It is the right feed
+for testing while the bot earns from ads only; it must NOT be the
+feed for a sold premium product — check finnhub.io before any
+commercial use. That decision is the owner's, later.
 
 ## Proving the live stream
 
@@ -199,5 +274,12 @@ every fix so the artifact always matches the current code.
   real Quotex session yet — it needs `QUOTEX_EMAIL` + `QUOTEX_SSID`
   from the vault/browser path (above). Until that runs, the live
   feed is code-reviewed and import-tested, not proven.
+- **Finnhub live-key proof.** `--mode finnhub` is built, unit-tested
+  (20 tests, synthetic ticks) and fails cleanly without a key, but
+  no real `FINNHUB_API_KEY` exists yet — the first run against the
+  live websocket is still unproven. It also needs the one-time
+  Supabase ALTER above before it can write to production Supabase
+  (local SQLite already accepts `broker='finnhub'`).
 - **HA-fade in the db** (schema CHECK gap above) and **VOID in the
   db** (no `'void'` result value) — backend agent's call.
+  (Both resolved Nov 24 — see the update note in that section.)

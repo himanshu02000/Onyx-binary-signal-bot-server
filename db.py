@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS signals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pair TEXT NOT NULL,
-    broker TEXT NOT NULL CHECK (broker IN ('quotex','olymp_trade','pocket_option')),
+    broker TEXT NOT NULL CHECK (broker IN ('quotex','olymp_trade','pocket_option','finnhub')),
     strategy TEXT NOT NULL CHECK (strategy IN ('elite','turbo','prime','ha_fade')),
     direction TEXT NOT NULL CHECK (direction IN ('call','put')),
     entry TEXT NOT NULL,

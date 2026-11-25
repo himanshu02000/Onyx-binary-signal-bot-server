@@ -37,7 +37,7 @@ create table if not exists public.signals (
     id         bigint generated always as identity primary key,
     pair       text not null,                      -- e.g. 'EUR/USD'
     broker     text not null
-               check (broker in ('quotex', 'olymp_trade', 'pocket_option')),
+               check (broker in ('quotex', 'olymp_trade', 'pocket_option', 'finnhub')),
     strategy   text not null
                check (strategy in ('elite', 'turbo', 'prime', 'ha_fade')),
     direction  text not null check (direction in ('call', 'put')),

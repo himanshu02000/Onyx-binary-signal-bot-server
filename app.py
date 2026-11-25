@@ -40,6 +40,7 @@ Run locally:  uvicorn app:app --reload --port 8000   (from server/)
 """
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -86,6 +87,43 @@ def _startup() -> None:
     elif not telegram_bot.webhook_secret():
         print("WARNING: TELEGRAM_WEBHOOK_SECRET not set — webhook accepts any POST "
               "(set it in Render and in setWebhook for production).")
+
+
+@app.on_event("startup")
+async def _start_signal_engine() -> None:
+    """Start the Finnhub live-feed engine as a background task (test feed).
+
+    Only when FINNHUB_API_KEY is set. A failed import or a feed error is
+    logged and never stops the API — signals simply stay empty, as before.
+    On Render free the web service sleeps when idle, so the engine pauses
+    with it; traffic (API calls / Telegram webhook) wakes it again.
+    """
+    if not os.environ.get("FINNHUB_API_KEY", "").strip():
+        print("Signal engine idle: FINNHUB_API_KEY not set — no live signals.")
+        return
+    try:
+        from types import SimpleNamespace
+
+        from engine.run import run_finnhub
+        from engine.types import REAL_PAIRS
+    except Exception as exc:  # engine import must never kill the API
+        print(f"Signal engine NOT started (import failed: {exc}).")
+        return
+    args = SimpleNamespace(
+        pairs=",".join(REAL_PAIRS),
+        strategies="elite,prime,ha_fade",
+        elite_trigger="overlap",
+        prime_expiry=5,
+        ha_tfs="15,30,60",
+        data_dir="data",
+    )
+    task = asyncio.create_task(run_finnhub(args))
+    task.add_done_callback(
+        lambda t: print(f"Signal engine stopped: {t.exception()!r}")
+        if t.exception()
+        else None
+    )
+    print("Signal engine started (Finnhub test feed, background task).")
 
 
 # ------------------------------------------------------------------ models

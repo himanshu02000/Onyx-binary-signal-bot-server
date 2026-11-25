@@ -1,0 +1,75 @@
+{
+  "Elite": {
+    "emitted": 49833,
+    "trades": 49805,
+    "wins": 23448,
+    "void": 28,
+    "win_rate_pct": 47.08,
+    "published": "47.0-50.2% combined (L 47.04-48.36% / O up to 50.18% 1h->5m); forex-only best 49.50% (1h->5m overlap)"
+  },
+  "_by_expiry_direction": {
+    "Elite exp1m CALL": {
+      "trades": 11683,
+      "wins": 5370,
+      "win_rate_pct": 45.96
+    },
+    "Elite exp1m PUT": {
+      "trades": 11787,
+      "wins": 5468,
+      "win_rate_pct": 46.39
+    },
+    "Elite exp2m CALL": {
+      "trades": 6403,
+      "wins": 3087,
+      "win_rate_pct": 48.21
+    },
+    "Elite exp2m PUT": {
+      "trades": 6499,
+      "wins": 3047,
+      "win_rate_pct": 46.88
+    },
+    "Elite exp3m CALL": {
+      "trades": 4322,
+      "wins": 2129,
+      "win_rate_pct": 49.26
+    },
+    "Elite exp3m PUT": {
+      "trades": 4495,
+      "wins": 2106,
+      "win_rate_pct": 46.85
+    },
+    "Elite exp5m CALL": {
+      "trades": 2165,
+      "wins": 1054,
+      "win_rate_pct": 48.68
+    },
+    "Elite exp5m PUT": {
+      "trades": 2451,
+      "wins": 1187,
+      "win_rate_pct": 48.43
+    }
+  },
+  "_voided_at_end_of_data": 0,
+  "_meta": {
+    "mode": "test",
+    "dataset": "ext",
+    "pairs": [
+      "EURUSD",
+      "GBPUSD",
+      "EURJPY",
+      "USDJPY",
+      "AUDUSD",
+      "USDCAD"
+    ],
+    "bars_per_pair": {
+      "AUDUSD": 477704,
+      "EURJPY": 477809,
+      "EURUSD": 478191,
+      "GBPUSD": 477497,
+      "USDCAD": 478494,
+      "USDJPY": 478744
+    },
+    "seconds": 375.8,
+    "note": "BETA: status=test only. No strategy here beats the 53.2% breakeven \u2014 see published references."
+  }
+}

@@ -3,3 +3,5 @@
 # (The backend's requirements.txt deliberately excludes it — it
 # belongs to the engine. Install with: pip install -r requirements.txt)
 git+https://github.com/cleitonleonel/pyquotex.git
+# Finnhub websocket client (temporary test feed, --mode finnhub).
+websockets==15.0.1

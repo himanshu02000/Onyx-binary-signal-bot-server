@@ -1,6 +1,6 @@
 """Pluggable real-market feeds.
 
-Two implementations:
+Three implementations:
 
 1. ``HistdataFileFeed`` — TEST MODE. Replays the stored Histdata
    1-minute candles in ~/workspace/signal-bot/backtest/data/. No key,
@@ -12,6 +12,13 @@ Two implementations:
    below). Activates only when TWELVEDATA_API_KEY is set in the
    environment; with no key the engine runs in test mode and live
    mode runs on Quotex alone.
+
+3. ``FinnhubFeed`` (``finnhub_feed.py``) — TEMPORARY TEST FEED.
+   Streams live forex ticks from Finnhub's free websocket and
+   aggregates them into 1-minute candles. Used by
+   ``run.py --mode finnhub`` while the Quotex feed is blocked (no
+   QUOTEX_SSID). Quotex remains the production feed; Finnhub's free
+   tier is personal-use — fine for testing, not for a sold product.
 
 FREE-LIMIT MATH (Twelve Data Basic plan, free — verified Nov 24 2026
 against their pricing page and third-party pricing trackers):
@@ -31,9 +38,11 @@ against their pricing page and third-party pricing trackers):
 
 Alternatives considered (not implemented): TraderMade free tier
 (1,000 requests/month — too small for 6 pairs), Alpha Vantage free
-(25 requests/day — far too small), Finnhub free (60 calls/min but
-forex candles need the paid candle endpoint). Twelve Data is the
-best free fit for seeding/backfill.
+(25 requests/day — far too small). Finnhub free WAS implemented
+(Nov 25 2026, ``finnhub_feed.py``) — not via its paid candle
+endpoint, but as a websocket tick stream aggregated into 1m
+candles; it is the temporary TEST feed while Quotex is blocked,
+not a production feed (personal-use licence).
 """
 
 from __future__ import annotations

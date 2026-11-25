@@ -1,0 +1,35 @@
+{
+  "Prime": {
+    "emitted": 884,
+    "trades": 883,
+    "wins": 395,
+    "void": 1,
+    "win_rate_pct": 44.73,
+    "published": "49.07% (EUR/USD only, 5m chart, 5m expiry, short Aug-Nov 2026 file \u2014 use --dataset short --strategies prime)"
+  },
+  "_by_expiry_direction": {
+    "Prime exp5m CALL": {
+      "trades": 442,
+      "wins": 186,
+      "win_rate_pct": 42.08
+    },
+    "Prime exp5m PUT": {
+      "trades": 441,
+      "wins": 209,
+      "win_rate_pct": 47.39
+    }
+  },
+  "_voided_at_end_of_data": 0,
+  "_meta": {
+    "mode": "test",
+    "dataset": "short",
+    "pairs": [
+      "EURUSD"
+    ],
+    "bars_per_pair": {
+      "EURUSD": 100353
+    },
+    "seconds": 12.7,
+    "note": "BETA: status=test only. No strategy here beats the 53.2% breakeven \u2014 see published references."
+  }
+}

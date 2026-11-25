@@ -32,6 +32,7 @@ class Broker(str, Enum):
     QUOTEX = "quotex"
     HISTDATA = "histdata"      # stored test candles (replay only)
     TWELVEDATA = "twelvedata"  # free real-market feed (seed/backfill)
+    FINNHUB = "finnhub"        # free Finnhub websocket (TEST FEED ONLY)
 
 
 class Direction(str, Enum):
@@ -73,6 +74,7 @@ class Candle:
     close: float
     market: Market = Market.REAL
     broker: Broker = Broker.HISTDATA
+    volume: float | None = None  # summed tick volume (Finnhub feed); None when unknown
 
     @property
     def end(self) -> datetime:

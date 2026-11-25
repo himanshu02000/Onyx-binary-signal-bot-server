@@ -1,0 +1,131 @@
+{
+  "Elite": {
+    "emitted": 49833,
+    "trades": 49805,
+    "wins": 23448,
+    "void": 28,
+    "win_rate_pct": 47.08,
+    "published": "47.0-50.2% combined (L 47.04-48.36% / O up to 50.18% 1h->5m); forex-only best 49.50% (1h->5m overlap)"
+  },
+  "HA-fade": {
+    "emitted": 210806,
+    "trades": 210441,
+    "wins": 106243,
+    "void": 365,
+    "win_rate_pct": 50.49,
+    "published": "forex-only 2-candle: 1m 47.54%, 5m 49.87%, 15m 50.23%, 30m 50.95%, 1h 51.17%"
+  },
+  "Turbo": {
+    "emitted": 4456,
+    "trades": 4456,
+    "wins": 1671,
+    "void": 0,
+    "win_rate_pct": 37.5,
+    "published": "NEVER BACKTESTED \u2014 no published number; any win rate here is a first measurement, not a claim"
+  },
+  "_by_expiry_direction": {
+    "Elite exp1m CALL": {
+      "trades": 11683,
+      "wins": 5370,
+      "win_rate_pct": 45.96
+    },
+    "Elite exp1m PUT": {
+      "trades": 11787,
+      "wins": 5468,
+      "win_rate_pct": 46.39
+    },
+    "Elite exp2m CALL": {
+      "trades": 6403,
+      "wins": 3087,
+      "win_rate_pct": 48.21
+    },
+    "Elite exp2m PUT": {
+      "trades": 6499,
+      "wins": 3047,
+      "win_rate_pct": 46.88
+    },
+    "Elite exp3m CALL": {
+      "trades": 4322,
+      "wins": 2129,
+      "win_rate_pct": 49.26
+    },
+    "Elite exp3m PUT": {
+      "trades": 4495,
+      "wins": 2106,
+      "win_rate_pct": 46.85
+    },
+    "Elite exp5m CALL": {
+      "trades": 2165,
+      "wins": 1054,
+      "win_rate_pct": 48.68
+    },
+    "Elite exp5m PUT": {
+      "trades": 2451,
+      "wins": 1187,
+      "win_rate_pct": 48.43
+    },
+    "HA-fade exp15m CALL": {
+      "trades": 59029,
+      "wins": 29846,
+      "win_rate_pct": 50.56
+    },
+    "HA-fade exp15m PUT": {
+      "trades": 64676,
+      "wins": 32171,
+      "win_rate_pct": 49.74
+    },
+    "HA-fade exp30m CALL": {
+      "trades": 27939,
+      "wins": 14316,
+      "win_rate_pct": 51.24
+    },
+    "HA-fade exp30m PUT": {
+      "trades": 31290,
+      "wins": 15837,
+      "win_rate_pct": 50.61
+    },
+    "HA-fade exp60m CALL": {
+      "trades": 12948,
+      "wins": 6681,
+      "win_rate_pct": 51.6
+    },
+    "HA-fade exp60m PUT": {
+      "trades": 14559,
+      "wins": 7392,
+      "win_rate_pct": 50.77
+    },
+    "Turbo exp1m CALL": {
+      "trades": 2476,
+      "wins": 947,
+      "win_rate_pct": 38.25
+    },
+    "Turbo exp1m PUT": {
+      "trades": 1980,
+      "wins": 724,
+      "win_rate_pct": 36.57
+    }
+  },
+  "_voided_at_end_of_data": 13,
+  "_meta": {
+    "mode": "test",
+    "dataset": "ext",
+    "pairs": [
+      "EURUSD",
+      "GBPUSD",
+      "EURJPY",
+      "USDJPY",
+      "AUDUSD",
+      "USDCAD"
+    ],
+    "bars_per_pair": {
+      "AUDUSD": 477704,
+      "EURJPY": 477809,
+      "EURUSD": 478191,
+      "GBPUSD": 477497,
+      "USDCAD": 478494,
+      "USDJPY": 478744
+    },
+    "seconds": 686.4,
+    "note": "BETA: status=test only. No strategy here beats the 53.2% breakeven \u2014 see published references."
+  }
+}
