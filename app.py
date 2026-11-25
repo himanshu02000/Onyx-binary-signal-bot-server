@@ -9,6 +9,9 @@ Endpoints (all JSON):
     GET  /health                         {"status": "ok", ...}
     GET  /api/signals                    real-market signals, newest first
     GET  /api/results                    past signals win/loss/pending
+    POST /api/signals/generate           on-demand 1-min signal for a pair
+                                         (real setup if one is armed, else a
+                                         "Momentum" quick read; free 10/day)
     GET  /api/premium/status?user_id=    plan + premium expiry
     GET  /api/premium/info               price, networks, wallets, checkout on/off
     POST /api/users                      register / refresh a Telegram user
@@ -70,6 +73,8 @@ _extra = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if
 ALLOWED_ORIGINS = list(dict.fromkeys(ALLOWED_ORIGINS + _extra))
 
 app = FastAPI(title="Onyx Binary Signal Bot — API", version="0.1.0-beta")
+app.state.engine = None  # live Engine instance (set by _start_signal_engine)
+app.state.generate_last = {}  # pair code -> last manual generate time (UTC)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -117,12 +122,16 @@ async def _start_signal_engine() -> None:
         ha_tfs="15,30,60",
         data_dir="data",
     )
-    task = asyncio.create_task(run_finnhub(args))
-    task.add_done_callback(
-        lambda t: print(f"Signal engine stopped: {t.exception()!r}")
-        if t.exception()
-        else None
+    task = asyncio.create_task(
+        run_finnhub(args, on_engine=lambda e: setattr(app.state, "engine", e))
     )
+
+    def _engine_done(t: asyncio.Task) -> None:
+        if t.exception():
+            print(f"Signal engine stopped: {t.exception()!r}")
+            app.state.engine = None
+
+    task.add_done_callback(_engine_done)
     print("Signal engine started (Finnhub test feed, background task).")
 
 
@@ -147,6 +156,11 @@ class VerifyIn(BaseModel):
 
 class CheckIn(BaseModel):
     payment_id: int
+
+
+class GenerateIn(BaseModel):
+    pair: str  # e.g. "EUR/USD" or "EURUSD"
+    plan: Optional[str] = "free"  # "free" | "premium"
 
 
 # ------------------------------------------------------------------ helpers
@@ -203,6 +217,99 @@ def health():
 
 
 # ------------------------------------------------------------------ signals
+# Real pairs only (same six as engine/types.py REAL_PAIRS; kept local so
+# this module never imports the engine at import time).
+_REAL_PAIRS = ("EURUSD", "GBPUSD", "EURJPY", "USDJPY", "AUDUSD", "USDCAD")
+_STRATEGY_DISPLAY = {"elite": "Elite", "turbo": "Turbo", "prime": "Prime",
+                     "ha_fade": "HA-fade", "momentum": "Momentum"}
+
+
+@app.post("/api/signals/generate")
+async def generate_signal(body: GenerateIn):
+    """On-demand 1-minute signal for one pair — no waiting for a setup.
+
+    Uses the LIVE engine's own candle store and strategy state (see
+    engine/generate.py): a real armed setup is preferred when one
+    exists, otherwise a "Momentum" quick read of the last 1m candle.
+    Expiry is always 1 minute; entry is the next minute open (UTC).
+    The signal is written through the same store + ResultChecker path
+    as automatic signals, so it appears in GET /api/signals and is
+    scored exactly once. Limits (server-side): 1 manual generate per
+    pair per minute, and free plan counts toward the 10/day daily
+    limit (manual + automatic rows in the signals table)."""
+    pair = (body.pair or "").strip().upper().replace("/", "").replace(" ", "")
+    if pair not in _REAL_PAIRS:
+        raise HTTPException(
+            400,
+            "pair must be one of EUR/USD, GBP/USD, EUR/JPY, USD/JPY, "
+            "AUD/USD, USD/CAD.",
+        )
+    engine = getattr(app.state, "engine", None)
+    if engine is None:
+        raise HTTPException(
+            503,
+            "Signal engine is not running yet — please wait a moment and "
+            "try again.",
+        )
+    plan = _resolve_plan(None, body.plan)
+    now = datetime.now(timezone.utc)
+    # Rate limit: max 1 manual generate per pair per minute.
+    last = app.state.generate_last.get(pair)
+    if last is not None and (now - last).total_seconds() < 60:
+        raise HTTPException(
+            429,
+            f"One signal per pair per minute — try {pair[:3]}/{pair[3:]} "
+            "again in a few seconds.",
+        )
+    # Free daily limit: today's rows (manual + automatic) in the DB.
+    free_limit = int(db.get_settings().get("free_daily_limit", "10"))
+    if plan == "free" and db.count_signals_today() >= free_limit:
+        raise HTTPException(
+            429,
+            "Free limit reached for today (10 signals a day). Premium "
+            "unlocks unlimited signals.",
+        )
+    try:
+        from engine.generate import generate_now
+    except Exception as exc:  # engine import must never break the API
+        raise HTTPException(503, f"Signal engine is not available ({exc}).")
+    made = generate_now(engine, pair, now=now)
+    if made is None:
+        raise HTTPException(
+            503,
+            f"No live data yet for {pair[:3]}/{pair[3:]} — the engine is "
+            "still warming up. Try again in a minute.",
+        )
+    sig, source = made
+    app.state.generate_last[pair] = now
+    db_id = None
+    sink = getattr(engine.checker, "sink", None)
+    if sink is not None and hasattr(sink, "db_id_for"):
+        db_id = sink.db_id_for(sig.id)
+    remaining = None
+    if plan == "free":
+        remaining = max(0, free_limit - db.count_signals_today())
+    return {
+        "signal": {
+            "id": db_id if db_id is not None else sig.id,
+            "pair": f"{pair[:3]}/{pair[3:]}",
+            "direction": sig.direction.value,
+            "entry_time": sig.entry_time.isoformat(),
+            "entry": sig.entry_time.isoformat(),
+            "expiry": "1 min",
+            "strategy": _STRATEGY_DISPLAY.get(sig.strategy.lower(), sig.strategy),
+            "strategy_key": sig.strategy.lower(),
+            "broker": sig.broker.value,
+            "market": "real",
+            "is_beta": True,
+            "source": source,
+            "sent_at": sig.created_at.isoformat(),
+        },
+        "plan": plan,
+        "free_limit_remaining": remaining,
+    }
+
+
 @app.get("/api/signals")
 def list_signals(
     broker: Optional[str] = Query(None, description="quotex | olymp_trade | pocket_option"),

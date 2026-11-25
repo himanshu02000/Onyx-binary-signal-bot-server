@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS signals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pair TEXT NOT NULL,
     broker TEXT NOT NULL CHECK (broker IN ('quotex','olymp_trade','pocket_option','finnhub')),
-    strategy TEXT NOT NULL CHECK (strategy IN ('elite','turbo','prime','ha_fade')),
+    strategy TEXT NOT NULL CHECK (strategy IN ('elite','turbo','prime','ha_fade','momentum')),
     direction TEXT NOT NULL CHECK (direction IN ('call','put')),
     entry TEXT NOT NULL,
     expiry TEXT NOT NULL,
@@ -335,6 +335,23 @@ def insert_signal(
     )
     get_sqlite().commit()
     return get_signal(cur.lastrowid)  # type: ignore[arg-type]
+
+
+def count_signals_today() -> int:
+    """Signals written today (UTC), manual + automatic — the free
+    daily counter for on-demand Generate. Counts rows in the same
+    table GET /api/signals reads."""
+    today = _today().isoformat()
+    if backend() == "supabase":
+        res = (
+            get_supabase().table("signals").select("id")
+            .gte("sent_at", today + "T00:00:00+00:00").execute()
+        )
+        return len(res.data or [])
+    row = get_sqlite().execute(
+        "SELECT COUNT(*) AS n FROM signals WHERE date(sent_at) = ?", (today,)
+    ).fetchone()
+    return int(row["n"])
 
 
 def get_signal(signal_id: int) -> Optional[dict]:

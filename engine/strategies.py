@@ -102,6 +102,25 @@ class BaseStrategy:
         self._pending = remaining
         return out
 
+    def take_next_pending(self, pair: str, now: datetime) -> dict | None:
+        """Pop and return the earliest pending entry for pair with
+        entry_time in the future (entry_time > now), else None.
+
+        Used ONLY by on-demand generate: consuming the entry stops
+        the automatic engine finalising the same setup again on the
+        next 1-minute bar (no double-emit). Entries whose entry time
+        already passed are left alone — the engine's finalize_pending()
+        voids them on the next bar, as before."""
+        future = [
+            p for p in self._pending
+            if p["pair"] == pair and p["entry_time"] > now
+        ]
+        if not future:
+            return None
+        nxt = min(future, key=lambda p: p["entry_time"])
+        self._pending.remove(nxt)
+        return nxt
+
     def _emit(
         self,
         pair: str,

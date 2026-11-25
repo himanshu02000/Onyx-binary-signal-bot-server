@@ -264,7 +264,7 @@ async def run_live(args) -> None:
         await feed.close()
 
 
-async def run_finnhub(args) -> None:
+async def run_finnhub(args, on_engine=None) -> None:
     """FINNHUB MODE (temporary test feed).
 
     Same strategies, same scoring as live mode — only the candle
@@ -273,6 +273,10 @@ async def run_finnhub(args) -> None:
     API reads (DbSignalStore; local JSONL outbox as fallback), so
     they show up in GET /api/signals for testing. Nothing here is
     ever a paid/premium signal and nothing places a trade.
+
+    on_engine: optional callback(engine) invoked once the Engine is
+    built, so the API can keep a reference for on-demand Generate
+    (POST /api/signals/generate). It does not change the feed loop.
     """
     config = FinnhubConfig.from_env()
     config.require()  # clear error if the key is missing — first thing
@@ -286,6 +290,8 @@ async def run_finnhub(args) -> None:
     store = DbSignalStore(JsonFileSignalStore(args.data_dir))
     engine = Engine(pairs, strategies, args.data_dir, Broker.FINNHUB,
                     store=store)
+    if on_engine is not None:
+        on_engine(engine)
     feed = FinnhubFeed(config, pairs=pairs)
 
     # Finnhub free has NO historical candle endpoint, so seed history

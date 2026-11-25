@@ -61,7 +61,10 @@ class SignalStore(Protocol):
 
 
 # Engine strategy name -> db strategy value.
-_DB_STRATEGY = {"Elite": "elite", "Turbo": "turbo", "Prime": "prime", "HA-fade": "ha_fade"}
+# "Momentum" is the on-demand Generate fallback (quick read of the last
+# 1m candle) — a first-class strategy value, never a relabelled setup.
+_DB_STRATEGY = {"Elite": "elite", "Turbo": "turbo", "Prime": "prime",
+                "HA-fade": "ha_fade", "Momentum": "momentum"}
 
 
 class DbSignalStore:
@@ -111,6 +114,11 @@ class DbSignalStore:
             is_beta=True,
         )
         self._engine_to_db_id[signal.id] = row["id"]
+
+    def db_id_for(self, engine_signal_id: str) -> int | None:
+        """DB row id for an engine signal id (None if it was never
+        written to the DB, e.g. JSONL fallback only)."""
+        return self._engine_to_db_id.get(engine_signal_id)
 
     def save_result(
         self, signal_id: str, result: str, expiry_price: float | None

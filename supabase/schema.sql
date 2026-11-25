@@ -39,7 +39,7 @@ create table if not exists public.signals (
     broker     text not null
                check (broker in ('quotex', 'olymp_trade', 'pocket_option', 'finnhub')),
     strategy   text not null
-               check (strategy in ('elite', 'turbo', 'prime', 'ha_fade')),
+               check (strategy in ('elite', 'turbo', 'prime', 'ha_fade', 'momentum')),
     direction  text not null check (direction in ('call', 'put')),
     entry      timestamptz not null,              -- entry time
     expiry     text not null,                     -- e.g. '1 min' / '5 min' / '15 min'

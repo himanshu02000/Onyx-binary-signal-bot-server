@@ -32,7 +32,7 @@ PREMIUM_PRICE_USDT = 1.97
 PREMIUM_DAYS = 30
 FREE_DAILY_LIMIT = 10  # owner's call Nov 24: free = 10 signals/day (for now)
 FREE_SAMPLE_UNLOCKED = 1  # only the first (newest) signal is fully visible to free users
-STRATEGIES = ("elite", "turbo", "prime")
+STRATEGIES = ("elite", "turbo", "prime", "momentum")  # momentum = on-demand Generate quick read
 BROKERS = ("quotex", "olymp_trade", "pocket_option", "finnhub")  # finnhub = test-phase live feed only (Nov 25)
 NETWORKS = ("BSC", "Tron")
 
